@@ -5,7 +5,7 @@ from .tools import process_daily_audio
 # Researcher
 researcher = Agent(
 name="Researcher",
-    model="gemini-2.0-flash",
+    model="gemini-3-flash-preview",
     #response_schema=WeeklyResearch, # The agent will now output JSON matching our class
     instruction="""You are a learned torah scholar with deep knowledge.
         You search for the Parasha of the current week using chabad.org
@@ -20,7 +20,7 @@ name="Researcher",
 # ScriptWriter
 scriptwriter = Agent(
 name="ScriptWriter",
-    model="gemini-2.0-flash",
+    model="gemini-3-flash-preview",
     #response_schema=WeeklyResearch, # The agent will now output JSON matching our class
     instruction="""You are a master podcaster.
        You turn the {parasha_brief} into a series of 5 daily 10 minute talks.
@@ -42,7 +42,7 @@ name="ScriptWriter",
 
 dvar_torah = Agent(
 name="DvarTorah",
-    model="gemini-2.0-flash",
+    model="claude-haiku-4-5",
     #response_schema=WeeklyResearch, # The agent will now output JSON matching our class
     instruction="""Using the scripts, develop a short 'Dvar Torah' a short, insightful talk.
     This should act as a bridge between ancient wisdom and modern life, offering practical lessons 
@@ -51,13 +51,6 @@ name="DvarTorah",
     """,
     output_key="dvar_torah"
 )
-
-#
-#formatter = Agent(
-#    name="TTS_Formatter",
-#    instruction="""Given th
-#    """
-#)
 
 # Producer calls the tool for each script
 producer = Agent(

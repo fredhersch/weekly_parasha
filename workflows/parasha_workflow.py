@@ -30,7 +30,7 @@ def script_step(step_input: StepInput) -> StepOutput:
 def daily_reflection_step(step_input: StepInput) -> StepOutput:
     prior = step_input.previous_step_content or ""
     result = daily_reflection_agent.run(
-        f"Based on this research and commentary, create 5 daily parasha reflections:\n\n{prior}"
+        f"Based on this research and commentary, create 6 daily parasha reflections (Sunday through Erev Shabbat):\n\n{prior}"
     )
     return StepOutput(content=result.content)
 
@@ -41,23 +41,25 @@ def dvar_torah_step(step_input: StepInput) -> StepOutput:
     )
     return StepOutput(content=result.content)
 
-# Full weekly workflow — research + commentary + podcast
+# Single combined workflow — everything in one run
 torah_workflow = Workflow(
     name="Torah Study Workflow",
     steps=[
-        Step(name="research", executor=research_step),
+        Step(name="research",   executor=research_step),
         Step(name="commentary", executor=commentary_step),
-        Step(name="script", executor=script_step),
+        Step(name="script",     executor=script_step),
+        Step(name="dailies",    executor=daily_reflection_step),
+        Step(name="dvar_torah", executor=dvar_torah_step),
     ]
 )
 
-# Daily + Dvar Torah workflow — research + commentary + dailies + dvar
+# Keep daily-only workflow for AgentOS access
 torah_daily_workflow = Workflow(
     name="Torah Daily Workflow",
     steps=[
-        Step(name="research", executor=research_step),
+        Step(name="research",   executor=research_step),
         Step(name="commentary", executor=commentary_step),
-        Step(name="dailies", executor=daily_reflection_step),
+        Step(name="dailies",    executor=daily_reflection_step),
         Step(name="dvar_torah", executor=dvar_torah_step),
     ]
 )
