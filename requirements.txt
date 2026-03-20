@@ -3,3 +3,4 @@ google-cloud-aiplatform
 google-cloud-texttospeech
 python-dotenv
 protobuf
+fastapi
