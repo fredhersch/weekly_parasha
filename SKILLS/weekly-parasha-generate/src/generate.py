@@ -146,7 +146,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     )
 
-    out_dir = Path(args.vault) / args.folder
+    # Resolve to absolute paths so the note always lands on the real filesystem (Obsidian vault).
+    vault_root = Path(args.vault).expanduser().resolve()
+    out_dir = vault_root / args.folder
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{on_date.isoformat()} - Parashat {parsha_info.english}.md"
 
@@ -157,7 +159,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     print(
         {
-            "written": str(out_path),
+            "written": str(out_path.resolve()),
+            "vault": str(vault_root),
+            "folder": args.folder,
             "parsha": parsha_info.english,
             "hebrew": parsha_info.hebrew,
             "date": on_date.isoformat(),

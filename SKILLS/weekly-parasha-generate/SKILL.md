@@ -16,8 +16,11 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
   - Podcast Script
   - Daily Reflections (6 days)
   - Dvar Torah
-- Writes **one** Markdown note into the Obsidian vault folder:
-  - `/data/.openclaw/obsidian-vault/Torah Study/`
+- Writes **one** Markdown file to the **local filesystem** (Obsidian vault), same layout as before:
+  - **Directory:** `{OBSIDIAN_VAULT}/{OBSIDIAN_FOLDER}/` (defaults: `/data/.openclaw/obsidian-vault/Torah Study/`)
+  - **Filename:** `YYYY-MM-DD - Parashat <EnglishParsha>.md`
+  - **Note shape:** YAML frontmatter (`date`, `parsha`, `theme`, `generator`) then `# Torah Study — Parashat …` and sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
+  - Paths are **expanded and resolved** (`~` → home, absolute path) before writing.
 
 ## Requirements
 
