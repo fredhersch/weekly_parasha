@@ -7,8 +7,9 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
 
 ## What this skill does
 
-- Computes the upcoming Shabbat parsha using Hebcal
-- Collects a small live research bundle (Hebcal + Wikipedia summary when available)
+- Resolves the current parsha with `hdate` and `PARSHA_MAP` (same mapping as `app.py`)
+- Collects optional live context for citations (Hebcal leyning summary + Wikipedia when available)
+- Uses the same **instruction prompts** as `agents/*.py` (via `prompts/agent_prompts.py`)
 - Uses Claude via the official Anthropic Python SDK (`anthropic`) to generate:
   - Research
   - Commentary
@@ -56,7 +57,7 @@ SKILLS/weekly-parasha-generate/.venv/bin/python SKILLS/weekly-parasha-generate/s
 
 - `OBSIDIAN_VAULT` (default: `/data/.openclaw/obsidian-vault`)
 - `OBSIDIAN_FOLDER` (default: `Torah Study`)
-- `CLAUDE_MODEL` (default: `claude-3-7-sonnet-latest`)
+- `CLAUDE_MODEL` (default: `claude-sonnet-4-6`, matching `agents/*.py`)
 
 ## Output
 

@@ -8,26 +8,34 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-# Allow running as a plain script: `python SKILLS/weekly-parasha-generate/src/generate.py`
+# Repo skill layout: weekly-parasha-generate/{src,prompts}/
+ROOT = Path(__file__).resolve().parent.parent
 THIS_DIR = Path(__file__).resolve().parent
-if str(THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(THIS_DIR))
+for p in (THIS_DIR, ROOT):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 from claude import ClaudeConfig, complete  # noqa: E402
-from parsha import hebcal_weekly_parsha  # noqa: E402
+from parsha import ParshaInfo, resolve_parsha  # noqa: E402
+from prompts.agent_prompts import (  # noqa: E402
+    system_commentary,
+    system_daily,
+    system_dvar,
+    system_research,
+    system_script,
+)
 from render import NoteParts, render_markdown  # noqa: E402
-from research import collect_sources, Source  # noqa: E402
+from research import Source, collect_sources  # noqa: E402
 
-
-SYSTEM_BASE = """You are a learned Torah teacher and writer.
-Write in warm, accessible English for a broad audience.
-When you cite sources, use numbered citations like [1], [2] and then include a final section:
+SOURCES_SUFFIX = """
+When "Context sources" are provided and non-empty, cite them in the body as [1], [2], etc. and end your response with:
 
 ### Sources
 1. Title — URL
 2. Title — URL
 
-Do not invent URLs. Only cite from the provided sources list."""
+Do not invent URLs. If no context sources are listed, omit the ### Sources section entirely.
+"""
 
 
 def _parse_date(s: str) -> date:
@@ -35,21 +43,22 @@ def _parse_date(s: str) -> date:
 
 
 def _sources_block(sources: list[Source]) -> str:
+    if not sources:
+        return "(none)"
     lines = []
     for i, src in enumerate(sources, start=1):
         lines.append(f"{i}. {src.title} — {src.url}\n   Excerpt: {src.excerpt}")
     return "\n".join(lines)
 
 
-def _mk_prompt(*, parsha: str, theme: str, sources: list[Source], task: str) -> str:
-    return f"""Parsha: {parsha}
+def _context_prefix(*, parsha: ParshaInfo, theme: str, sources: list[Source]) -> str:
+    return f"""Current parsha (English): {parsha.english}
+Current parsha (Hebrew): {parsha.hebrew}
+Calendar date for this run: {parsha.on_date.isoformat()}
 Theme focus: {theme}
 
-Sources (use these for citations):
+Context sources (for citation when relevant):
 {_sources_block(sources)}
-
-Task:
-{task}
 """
 
 
@@ -57,72 +66,69 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Generate weekly parasha study note for Obsidian.")
     ap.add_argument("--theme", default="general themes")
     ap.add_argument("--date", dest="on_date", default=None, help="YYYY-MM-DD (defaults to today)")
-    ap.add_argument("--parsha", default=None, help="Override parsha name (otherwise computed)")
+    ap.add_argument("--parsha", default=None, help="Override English parsha name (skips hdate map for label only)")
     ap.add_argument("--vault", default=os.getenv("OBSIDIAN_VAULT", "/data/.openclaw/obsidian-vault"))
     ap.add_argument("--folder", default=os.getenv("OBSIDIAN_FOLDER", "Torah Study"))
     ap.add_argument("--force", action="store_true")
-    ap.add_argument("--model", default=os.getenv("CLAUDE_MODEL", "claude-3-7-sonnet-latest"))
+    ap.add_argument(
+        "--model",
+        default=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
+    )
     args = ap.parse_args(argv)
 
     on_date = _parse_date(args.on_date) if args.on_date else date.today()
-    info = hebcal_weekly_parsha(on_date=on_date, diaspora=True)
-    parsha = args.parsha.strip() if args.parsha else info.parsha
+    parsha_info = resolve_parsha(on_date=on_date)
+    if args.parsha:
+        parsha_info = ParshaInfo(
+            english=args.parsha.strip(),
+            hebrew=parsha_info.hebrew,
+            on_date=on_date,
+        )
 
-    sources = collect_sources(info)
+    sources = collect_sources(parsha_info)
+    ctx = _context_prefix(parsha=parsha_info, theme=args.theme, sources=sources)
 
-    cfg = ClaudeConfig(model=args.model, max_tokens=3200, temperature=0.6)
+    cfg = ClaudeConfig(model=args.model, max_tokens=4096, temperature=0.6)
+
+    # Mirrors workflows/parasha_workflow.py user prompts; system = agents/*.py instructions.
+    research_prompt = (
+        "Research this week's Torah portion. The current parasha is given above. "
+        "Draw on your knowledge of the text, Rashi, Ramban, and key themes."
+    )
+    if args.theme and args.theme != "general themes":
+        research_prompt += f" Focus especially on the theme of: {args.theme}"
 
     research = complete(
-        system=SYSTEM_BASE,
-        user=_mk_prompt(
-            parsha=parsha,
-            theme=args.theme,
-            sources=sources,
-            task="Write a structured research summary: key themes, key moments in the narrative, and 2-3 classical commentary angles (Rashi/Ramban style). Keep it concise but substantial.",
-        ),
+        system=system_research() + SOURCES_SUFFIX,
+        user=f"{ctx}\n\n{research_prompt}",
         config=cfg,
     )
 
     commentary = complete(
-        system=SYSTEM_BASE,
-        user=_mk_prompt(
-            parsha=parsha,
-            theme=args.theme,
-            sources=sources,
-            task=f"Based on this research, write 3–4 original insights (2–3 paragraphs each), connecting the parsha to modern life.\n\nResearch:\n{research}",
-        ),
+        system=system_commentary() + SOURCES_SUFFIX,
+        user=f"{ctx}\n\nBased on this research, generate deep insights:\n\n{research}",
         config=cfg,
     )
 
     script = complete(
-        system=SYSTEM_BASE,
-        user=_mk_prompt(
-            parsha=parsha,
-            theme=args.theme,
-            sources=sources,
-            task=f"Turn the commentary into a 6–8 minute podcast script (750–1250 words). Include stage directions like [PAUSE], [EMPHASIS], [MUSIC CUE]. Structure: Hook → Parsha intro → Deep dive → Life application → Close.\n\nCommentary:\n{commentary}",
-        ),
+        system=system_script() + SOURCES_SUFFIX,
+        user=f"{ctx}\n\nCreate a podcast script from this commentary:\n\n{commentary}",
         config=cfg,
     )
 
     dailies = complete(
-        system=SYSTEM_BASE,
-        user=_mk_prompt(
-            parsha=parsha,
-            theme=args.theme,
-            sources=sources,
-            task=f"Create 6 daily reflections, each 150–200 words, that build toward Shabbat.\nUse exactly these headers:\n**Day 1 — Sunday**\n**Day 2 — Monday**\n**Day 3 — Tuesday**\n**Day 4 — Wednesday**\n**Day 5 — Thursday**\n**Day 6 — Erev Shabbat**\nDays 1–5 end with a single question. Day 6 ends with a Shabbat blessing.\n\nResearch:\n{research}\n\nCommentary:\n{commentary}",
+        system=system_daily() + SOURCES_SUFFIX,
+        user=(
+            f"{ctx}\n\nBased on this research and commentary, create 6 daily parasha reflections "
+            f"(Sunday through Erev Shabbat):\n\n{script}"
         ),
         config=cfg,
     )
 
     dvar_torah = complete(
-        system=SYSTEM_BASE,
-        user=_mk_prompt(
-            parsha=parsha,
-            theme=args.theme,
-            sources=sources,
-            task=f"Write a Dvar Torah of 300–350 words.\nStart with: **Dvar Torah — Parashat {parsha}**\nNo bullet points.\nInclude one classical source and one modern voice, and end with Shabbat Shalom.\n\nResearch:\n{research}\n\nCommentary:\n{commentary}",
+        system=system_dvar() + SOURCES_SUFFIX,
+        user=(
+            f"{ctx}\n\nBased on this research and commentary, write a Dvar Torah for the Shabbat table:\n\n{script}"
         ),
         config=cfg,
     )
@@ -130,7 +136,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     note = render_markdown(
         NoteParts(
             date=on_date,
-            parsha=parsha,
+            parsha=parsha_info.english,
             theme=args.theme,
             research=research,
             commentary=commentary,
@@ -142,18 +148,18 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     out_dir = Path(args.vault) / args.folder
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{on_date.isoformat()} - Parashat {parsha}.md"
+    out_path = out_dir / f"{on_date.isoformat()} - Parashat {parsha_info.english}.md"
 
     if out_path.exists() and not args.force:
         raise SystemExit(f"Refusing to overwrite existing note: {out_path} (use --force)")
 
     out_path.write_text(note, encoding="utf-8")
 
-    # Print a small JSON-ish summary for automation/logging (stdout).
     print(
         {
             "written": str(out_path),
-            "parsha": parsha,
+            "parsha": parsha_info.english,
+            "hebrew": parsha_info.hebrew,
             "date": on_date.isoformat(),
             "theme": args.theme,
             "sources": [asdict(s) for s in sources],
@@ -164,4 +170,3 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
