@@ -24,6 +24,7 @@ from prompts.agent_prompts import (  # noqa: E402
     system_research,
     system_script,
 )
+from git_second_brain import push_note, resolve_git_root  # noqa: E402
 from render import NoteParts, render_markdown  # noqa: E402
 from research import Source, collect_sources  # noqa: E402
 
@@ -73,6 +74,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument(
         "--model",
         default=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
+    )
+    ap.add_argument(
+        "--no-git-push",
+        action="store_true",
+        help="Do not commit/push the new note to the second-brain git repo after writing.",
     )
     args = ap.parse_args(argv)
 
@@ -157,18 +163,43 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     out_path.write_text(note, encoding="utf-8")
 
-    print(
-        {
-            "written": str(out_path.resolve()),
-            "vault": str(vault_root),
-            "folder": args.folder,
-            "parsha": parsha_info.english,
-            "hebrew": parsha_info.hebrew,
-            "date": on_date.isoformat(),
-            "theme": args.theme,
-            "sources": [asdict(s) for s in sources],
-        }
+    summary: dict = {
+        "written": str(out_path.resolve()),
+        "vault": str(vault_root),
+        "folder": args.folder,
+        "parsha": parsha_info.english,
+        "hebrew": parsha_info.hebrew,
+        "date": on_date.isoformat(),
+        "theme": args.theme,
+        "sources": [asdict(s) for s in sources],
+    }
+
+    # Second-brain: commit + push the vault repo (or SECOND_BRAIN_GIT_ROOT).
+    git_push_enabled = os.getenv("SECOND_BRAIN_GIT_PUSH", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
     )
+    if not args.no_git_push and git_push_enabled:
+        git_root = resolve_git_root(vault_root=vault_root)
+        commit_msg = (
+            f"Torah study: Parashat {parsha_info.english} ({on_date.isoformat()})"
+        )
+        git_result = push_note(
+            git_root=git_root,
+            file_path=out_path.resolve(),
+            commit_message=commit_msg,
+        )
+        summary["git_push"] = git_result
+        if not git_result.get("ok") and not git_result.get("skipped"):
+            print(summary)
+            raise SystemExit(
+                f"Git push failed at step {git_result.get('step')!r}: "
+                f"{git_result.get('stderr') or git_result.get('stdout') or git_result}"
+            )
+
+    print(summary)
     return 0
 
 

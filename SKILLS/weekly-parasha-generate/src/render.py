@@ -22,9 +22,12 @@ def _yaml_escape(value: str) -> str:
 
 
 def render_markdown(parts: NoteParts) -> str:
+    # Title includes date + parsha for Obsidian (frontmatter `title` + visible H1).
+    title = f"{parts.date.isoformat()} — Torah Study — Parashat {parts.parsha}"
     fm = "\n".join(
         [
             "---",
+            f"title: {_yaml_escape(title)}",
             f"date: {parts.date.isoformat()}",
             f"parsha: {_yaml_escape(parts.parsha)}",
             f"theme: {_yaml_escape(parts.theme)}",
@@ -35,7 +38,7 @@ def render_markdown(parts: NoteParts) -> str:
 
     body = "\n\n".join(
         [
-            f"# Torah Study — Parashat {parts.parsha}",
+            f"# {title}",
             "## Research",
             parts.research.strip(),
             "## Commentary",

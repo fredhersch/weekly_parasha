@@ -19,8 +19,9 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
 - Writes **one** Markdown file to the **local filesystem** (Obsidian vault), same layout as before:
   - **Directory:** `{OBSIDIAN_VAULT}/{OBSIDIAN_FOLDER}/` (defaults: `/data/.openclaw/obsidian-vault/Torah Study/`)
   - **Filename:** `YYYY-MM-DD - Parashat <EnglishParsha>.md`
-  - **Note shape:** YAML frontmatter (`date`, `parsha`, `theme`, `generator`) then `# Torah Study — Parashat …` and sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
+  - **Note shape:** YAML frontmatter includes `title` (date + “Torah Study” + **parsha name**), plus `date`, `parsha`, `theme`, `generator`. The visible H1 matches that `title`. Then sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
   - Paths are **expanded and resolved** (`~` → home, absolute path) before writing.
+- After the file is written, **commits and pushes** the second-brain git repo by default (see below).
 
 ## Requirements
 
@@ -62,9 +63,18 @@ SKILLS/weekly-parasha-generate/.venv/bin/python SKILLS/weekly-parasha-generate/s
 - `OBSIDIAN_FOLDER` (default: `Torah Study`)
 - `CLAUDE_MODEL` (default: `claude-sonnet-4-6`, matching `agents/*.py`)
 
+### Second-brain git (commit + push)
+
+By default, after saving the note the script runs `git add`, `git commit`, and `git push` in the **second-brain** repository root:
+
+- **Git root:** `SECOND_BRAIN_GIT_ROOT` or `OBSIDIAN_GIT_ROOT` if set; otherwise the resolved `OBSIDIAN_VAULT` path (must contain a `.git` directory).
+- **Disable:** `SECOND_BRAIN_GIT_PUSH=0` or pass `--no-git-push`.
+- **Failure:** exits non-zero if `git commit` or `git push` fails (so automation can retry). If the path is not a git repo, push is skipped and reported in the printed summary under `git_push`.
+
 ## Output
 
 - File: `YYYY-MM-DD - Parashat <Parsha>.md`
+- Frontmatter `title` / H1: `YYYY-MM-DD — Torah Study — Parashat <Parsha>`
 - Headings:
   - `## Research`
   - `## Commentary`
