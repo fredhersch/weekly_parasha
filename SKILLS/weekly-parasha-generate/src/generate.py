@@ -23,6 +23,7 @@ from prompts.agent_prompts import (  # noqa: E402
     system_research,
     system_script,
 )
+from git_second_brain import push_note, resolve_git_root  # noqa: E402
 from render import NoteParts, render_markdown  # noqa: E402
 
 # Default Obsidian vault on the VPS (override with OBSIDIAN_VAULT / OBSIDIAN_FOLDER).
@@ -53,6 +54,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument(
         "--model",
         default=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
+    )
+    ap.add_argument(
+        "--no-git-push",
+        action="store_true",
+        help="Do not git commit/push after writing the note.",
     )
     args = ap.parse_args(argv)
 
@@ -133,6 +139,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise SystemExit(f"Refusing to overwrite existing note: {out_path} (use --force)")
 
     out_path.write_text(note, encoding="utf-8")
+
+    git_push_enabled = os.getenv("SECOND_BRAIN_GIT_PUSH", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    if not args.no_git_push and git_push_enabled:
+        git_root = resolve_git_root(vault_root=vault_root)
+        commit_msg = (
+            f"Torah study: Parashat {parsha_info.english} ({on_date.isoformat()})"
+        )
+        git_result = push_note(
+            git_root=git_root,
+            file_path=out_path.resolve(),
+            commit_message=commit_msg,
+        )
+        if not git_result.get("ok") and not git_result.get("skipped"):
+            raise SystemExit(
+                f"Git push failed at step {git_result.get('step')!r}: "
+                f"{git_result.get('stderr') or git_result.get('stdout') or git_result}"
+            )
+
     return 0
 
 

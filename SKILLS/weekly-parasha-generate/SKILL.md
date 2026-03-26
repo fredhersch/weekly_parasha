@@ -21,7 +21,7 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
   - **Filename:** `YYYY-MM-DD - Parashat <EnglishParsha>.md`
   - **Note shape:** YAML frontmatter includes `title` (date + “Torah Study” + **parsha name**), plus `date`, `parsha`, `theme`, `generator`. The visible H1 matches that `title`. Then sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
   - Paths are **expanded and resolved** (`~` → home, absolute path) before writing.
-- **No other outputs:** the script does not print a summary to stdout, run git, or write files outside the vault. The only artifact is the `.md` note in the vault folder above.
+- **After** the `.md` file is saved, runs **`git add` → `git commit` → `git push`** in the vault git repo (so the note is synced to remote). No JSON is printed to stdout. The only new file content is the note in the vault path above.
 
 ## Requirements
 
@@ -62,6 +62,13 @@ SKILLS/weekly-parasha-generate/.venv/bin/python SKILLS/weekly-parasha-generate/s
 - `OBSIDIAN_VAULT` (default: `/data/.openclaw/obsidian-vault`)
 - `OBSIDIAN_FOLDER` (default: `Torah Study`)
 - `CLAUDE_MODEL` (default: `claude-sonnet-4-6`, matching `agents/*.py`)
+
+### Git push (after saving the note)
+
+- **Default:** after writing the `.md` file, commit and push from the git root that contains the vault (usually `OBSIDIAN_VAULT` if it is a clone).
+- **Override git root:** `SECOND_BRAIN_GIT_ROOT` or `OBSIDIAN_GIT_ROOT`.
+- **Disable:** `SECOND_BRAIN_GIT_PUSH=0` or `--no-git-push`.
+- If the path is not a git repo, push is skipped (no error). If `git commit` or `git push` fails, the script exits non-zero.
 
 ## Output
 
