@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -26,41 +25,14 @@ from prompts.agent_prompts import (  # noqa: E402
 )
 from git_second_brain import push_note, resolve_git_root  # noqa: E402
 from render import NoteParts, render_markdown  # noqa: E402
-from research import Source, collect_sources  # noqa: E402
 
-SOURCES_SUFFIX = """
-When "Context sources" are provided and non-empty, cite them in the body as [1], [2], etc. and end your response with:
-
-### Sources
-1. Title — URL
-2. Title — URL
-
-Do not invent URLs. If no context sources are listed, omit the ### Sources section entirely.
-"""
+# Default Obsidian vault on the VPS (override with OBSIDIAN_VAULT / OBSIDIAN_FOLDER).
+DEFAULT_OBSIDIAN_VAULT = "/data/.openclaw/obsidian-vault"
+DEFAULT_OBSIDIAN_FOLDER = "Torah Study"
 
 
 def _parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
-
-
-def _sources_block(sources: list[Source]) -> str:
-    if not sources:
-        return "(none)"
-    lines = []
-    for i, src in enumerate(sources, start=1):
-        lines.append(f"{i}. {src.title} — {src.url}\n   Excerpt: {src.excerpt}")
-    return "\n".join(lines)
-
-
-def _context_prefix(*, parsha: ParshaInfo, theme: str, sources: list[Source]) -> str:
-    return f"""Current parsha (English): {parsha.english}
-Current parsha (Hebrew): {parsha.hebrew}
-Calendar date for this run: {parsha.on_date.isoformat()}
-Theme focus: {theme}
-
-Context sources (for citation when relevant):
-{_sources_block(sources)}
-"""
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -68,8 +40,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--theme", default="general themes")
     ap.add_argument("--date", dest="on_date", default=None, help="YYYY-MM-DD (defaults to today)")
     ap.add_argument("--parsha", default=None, help="Override English parsha name (skips hdate map for label only)")
-    ap.add_argument("--vault", default=os.getenv("OBSIDIAN_VAULT", "/data/.openclaw/obsidian-vault"))
-    ap.add_argument("--folder", default=os.getenv("OBSIDIAN_FOLDER", "Torah Study"))
+    ap.add_argument(
+        "--vault",
+        default=os.getenv("OBSIDIAN_VAULT", DEFAULT_OBSIDIAN_VAULT),
+        help=f"Obsidian vault root (default: {DEFAULT_OBSIDIAN_VAULT})",
+    )
+    ap.add_argument(
+        "--folder",
+        default=os.getenv("OBSIDIAN_FOLDER", DEFAULT_OBSIDIAN_FOLDER),
+        help=f"Subfolder under vault (default: {DEFAULT_OBSIDIAN_FOLDER!r})",
+    )
     ap.add_argument("--force", action="store_true")
     ap.add_argument(
         "--model",
@@ -91,50 +71,50 @@ def main(argv: Optional[list[str]] = None) -> int:
             on_date=on_date,
         )
 
-    sources = collect_sources(parsha_info)
-    ctx = _context_prefix(parsha=parsha_info, theme=args.theme, sources=sources)
-
     cfg = ClaudeConfig(model=args.model, max_tokens=4096, temperature=0.6)
 
-    # Mirrors workflows/parasha_workflow.py user prompts; system = agents/*.py instructions.
+    # User messages mirror workflows/parasha_workflow.py. System = agents/*.py only.
+    # Parsha is stated on the research step only (replaces get_parsha_info).
     research_prompt = (
-        "Research this week's Torah portion. The current parasha is given above. "
+        f"Research this week's Torah portion. The parasha is Parashat {parsha_info.english} "
+        f"(Hebrew: {parsha_info.hebrew}). "
         "Draw on your knowledge of the text, Rashi, Ramban, and key themes."
     )
     if args.theme and args.theme != "general themes":
         research_prompt += f" Focus especially on the theme of: {args.theme}"
 
     research = complete(
-        system=system_research() + SOURCES_SUFFIX,
-        user=f"{ctx}\n\n{research_prompt}",
+        system=system_research(),
+        user=research_prompt,
         config=cfg,
     )
 
     commentary = complete(
-        system=system_commentary() + SOURCES_SUFFIX,
-        user=f"{ctx}\n\nBased on this research, generate deep insights:\n\n{research}",
+        system=system_commentary(),
+        user=f"Based on this research, generate deep insights:\n\n{research}",
         config=cfg,
     )
 
     script = complete(
-        system=system_script() + SOURCES_SUFFIX,
-        user=f"{ctx}\n\nCreate a podcast script from this commentary:\n\n{commentary}",
+        system=system_script(),
+        user=f"Create a podcast script from this commentary:\n\n{commentary}",
         config=cfg,
     )
 
     dailies = complete(
-        system=system_daily() + SOURCES_SUFFIX,
+        system=system_daily(),
         user=(
-            f"{ctx}\n\nBased on this research and commentary, create 6 daily parasha reflections "
+            "Based on this research and commentary, create 6 daily parasha reflections "
             f"(Sunday through Erev Shabbat):\n\n{script}"
         ),
         config=cfg,
     )
 
     dvar_torah = complete(
-        system=system_dvar() + SOURCES_SUFFIX,
+        system=system_dvar(),
         user=(
-            f"{ctx}\n\nBased on this research and commentary, write a Dvar Torah for the Shabbat table:\n\n{script}"
+            "Based on this research and commentary, write a Dvar Torah for the Shabbat table:\n\n"
+            f"{script}"
         ),
         config=cfg,
     )
@@ -152,7 +132,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
     )
 
-    # Resolve to absolute paths so the note always lands on the real filesystem (Obsidian vault).
     vault_root = Path(args.vault).expanduser().resolve()
     out_dir = vault_root / args.folder
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -171,10 +150,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "hebrew": parsha_info.hebrew,
         "date": on_date.isoformat(),
         "theme": args.theme,
-        "sources": [asdict(s) for s in sources],
     }
 
-    # Second-brain: commit + push the vault repo (or SECOND_BRAIN_GIT_ROOT).
     git_push_enabled = os.getenv("SECOND_BRAIN_GIT_PUSH", "1").strip().lower() not in (
         "0",
         "false",

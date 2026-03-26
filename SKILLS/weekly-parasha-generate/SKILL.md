@@ -8,16 +8,16 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
 ## What this skill does
 
 - Resolves the current parsha with `hdate` and `PARSHA_MAP` (same mapping as `app.py`)
-- Collects optional live context for citations (Hebcal leyning summary + Wikipedia when available)
-- Uses the same **instruction prompts** as `agents/*.py` (via `prompts/agent_prompts.py`)
+- Uses the same **instruction prompts** as `agents/*.py` (via `prompts/agent_prompts.py`) as the **only** system instructions to the model (no extra context block on every step)
+- States English + Hebrew parsha **only** in the research user message (same role as the old `get_parsha_info` tool)
 - Uses Claude via the official Anthropic Python SDK (`anthropic`) to generate:
   - Research
   - Commentary
   - Podcast Script
   - Daily Reflections (6 days)
   - Dvar Torah
-- Writes **one** Markdown file to the **local filesystem** (Obsidian vault), same layout as before:
-  - **Directory:** `{OBSIDIAN_VAULT}/{OBSIDIAN_FOLDER}/` (defaults: `/data/.openclaw/obsidian-vault/Torah Study/`)
+- Writes **one** Markdown file on disk under the Obsidian vault:
+  - **Path:** `/data/.openclaw/obsidian-vault/Torah Study/` (defaults: vault `OBSIDIAN_VAULT=/data/.openclaw/obsidian-vault`, folder `OBSIDIAN_FOLDER=Torah Study`)
   - **Filename:** `YYYY-MM-DD - Parashat <EnglishParsha>.md`
   - **Note shape:** YAML frontmatter includes `title` (date + “Torah Study” + **parsha name**), plus `date`, `parsha`, `theme`, `generator`. The visible H1 matches that `title`. Then sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
   - Paths are **expanded and resolved** (`~` → home, absolute path) before writing.

@@ -1,4 +1,3 @@
 anthropic>=0.83.0
-requests>=2.32.0
 hdate>=1.1.2
 
