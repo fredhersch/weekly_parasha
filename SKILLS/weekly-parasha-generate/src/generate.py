@@ -23,7 +23,6 @@ from prompts.agent_prompts import (  # noqa: E402
     system_research,
     system_script,
 )
-from git_second_brain import push_note, resolve_git_root  # noqa: E402
 from render import NoteParts, render_markdown  # noqa: E402
 
 # Default Obsidian vault on the VPS (override with OBSIDIAN_VAULT / OBSIDIAN_FOLDER).
@@ -55,11 +54,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--model",
         default=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
     )
-    ap.add_argument(
-        "--no-git-push",
-        action="store_true",
-        help="Do not commit/push the new note to the second-brain git repo after writing.",
-    )
     args = ap.parse_args(argv)
 
     on_date = _parse_date(args.on_date) if args.on_date else date.today()
@@ -73,8 +67,6 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     cfg = ClaudeConfig(model=args.model, max_tokens=4096, temperature=0.6)
 
-    # User messages mirror workflows/parasha_workflow.py. System = agents/*.py only.
-    # Parsha is stated on the research step only (replaces get_parsha_info).
     research_prompt = (
         f"Research this week's Torah portion. The parasha is Parashat {parsha_info.english} "
         f"(Hebrew: {parsha_info.hebrew}). "
@@ -141,42 +133,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise SystemExit(f"Refusing to overwrite existing note: {out_path} (use --force)")
 
     out_path.write_text(note, encoding="utf-8")
-
-    summary: dict = {
-        "written": str(out_path.resolve()),
-        "vault": str(vault_root),
-        "folder": args.folder,
-        "parsha": parsha_info.english,
-        "hebrew": parsha_info.hebrew,
-        "date": on_date.isoformat(),
-        "theme": args.theme,
-    }
-
-    git_push_enabled = os.getenv("SECOND_BRAIN_GIT_PUSH", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
-    if not args.no_git_push and git_push_enabled:
-        git_root = resolve_git_root(vault_root=vault_root)
-        commit_msg = (
-            f"Torah study: Parashat {parsha_info.english} ({on_date.isoformat()})"
-        )
-        git_result = push_note(
-            git_root=git_root,
-            file_path=out_path.resolve(),
-            commit_message=commit_msg,
-        )
-        summary["git_push"] = git_result
-        if not git_result.get("ok") and not git_result.get("skipped"):
-            print(summary)
-            raise SystemExit(
-                f"Git push failed at step {git_result.get('step')!r}: "
-                f"{git_result.get('stderr') or git_result.get('stdout') or git_result}"
-            )
-
-    print(summary)
     return 0
 
 
