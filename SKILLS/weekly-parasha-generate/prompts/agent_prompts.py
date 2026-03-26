@@ -75,6 +75,16 @@ DVAR_INSTRUCTIONS = [
 ]
 
 
+# The final note supplies fixed ## headings in src/render.py; model output must not duplicate them.
+OUTPUT_FORMAT_RULE = (
+    "The host document already has a single ## heading for this section (Research, Commentary, "
+    "Podcast Script, Daily Reflections, or Dvar Torah). Your reply is pasted under that heading. "
+    "Do not begin your reply with # or ## or ### titles that repeat or mirror those section names. "
+    "Start with paragraph text (you may use **bold** and lists). "
+    "For Daily Reflections only, keep the required **Day N — …** bold lines as specified elsewhere."
+)
+
+
 def _format_system(role: str, instructions: list[str], *, markdown: bool = True) -> str:
     lines = [f"You are: {role}", ""]
     lines.append("Follow these instructions:")
@@ -82,7 +92,7 @@ def _format_system(role: str, instructions: list[str], *, markdown: bool = True)
         lines.append(f"- {inst}")
     if markdown:
         lines.append("")
-        lines.append("Use Markdown for structure where helpful.")
+        lines.append(OUTPUT_FORMAT_RULE)
     return "\n".join(lines)
 
 

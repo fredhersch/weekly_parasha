@@ -5,6 +5,33 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
 
 # Weekly Parasha (Obsidian Note Generator)
 
+## Pipeline (matches `workflows/parasha_workflow.py`)
+
+Five sequential Claude calls; each step uses **system** text from `prompts/agent_prompts.py` (same instructions as `agents/*.py`). The **user** message passes prior step output as in the workflow:
+
+| Step | User message includes |
+|------|------------------------|
+| 1. Research | Parsha (English + Hebrew) + theme line if set |
+| 2. Commentary | `Based on this research…` + **full `research` text** |
+| 3. Podcast script | `Create a podcast script…` + **full `commentary` text** |
+| 4. Daily reflections | `Based on this research and commentary…` + **full `script` text** |
+| 5. Dvar Torah | `Based on this research and commentary…` + **full `script` text** |
+
+Then `src/render.py` builds the file: YAML frontmatter, one `#` title, then exactly these **five** section headings in order, each followed only by that step’s body (duplicate `##` echoes from the model are stripped):
+
+```markdown
+## Research
+…
+## Commentary
+…
+## Podcast Script
+…
+## Daily Reflections
+…
+## Dvar Torah
+…
+```
+
 ## What this skill does
 
 - Resolves the current parsha with `hdate` and `PARSHA_MAP` (same mapping as `app.py`)
@@ -19,7 +46,7 @@ description: Generates a weekly Torah study note (research, commentary, podcast 
 - Writes **one** Markdown file on disk under the Obsidian vault:
   - **Path:** `/data/.openclaw/obsidian-vault/Torah Study/` (defaults: vault `OBSIDIAN_VAULT=/data/.openclaw/obsidian-vault`, folder `OBSIDIAN_FOLDER=Torah Study`)
   - **Filename:** `YYYY-MM-DD - Parashat <EnglishParsha>.md`
-  - **Note shape:** YAML frontmatter includes `title` (date + “Torah Study” + **parsha name**), plus `date`, `parsha`, `theme`, `generator`. The visible H1 matches that `title`. Then sections `## Research`, `## Commentary`, `## Podcast Script`, `## Daily Reflections`, `## Dvar Torah` (see `src/render.py`).
+  - **Note shape:** YAML frontmatter + one `#` title + exactly five `##` sections in fixed order (`render.py`). Section bodies are sanitized to remove accidental duplicate headings the model may emit at the start of a section.
   - Paths are **expanded and resolved** (`~` → home, absolute path) before writing.
 - **After** the `.md` file is saved, runs **`git add` → `git commit` → `git push`** in the vault git repo (so the note is synced to remote). No JSON is printed to stdout. The only new file content is the note in the vault path above.
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -21,8 +22,26 @@ def _yaml_escape(value: str) -> str:
     return f"\"{v}\""
 
 
+# Strip leading line(s) the model may echo (duplicate ## Research / ## Commentary / etc.).
+_LEADING_HEADING_ECHO = re.compile(
+    r"^\s*(?:#{1,6}\s*)?"
+    r"(?:Research|Commentary|Podcast(?:\s+Script)?|Daily\s+Reflections?|Dvar\s+Torah)"
+    r"(?:\s*[:\-–—])?\s*\n+",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_section_body(body: str) -> str:
+    t = body.strip()
+    for _ in range(8):
+        nxt = _LEADING_HEADING_ECHO.sub("", t, count=1)
+        if nxt == t:
+            break
+        t = nxt.strip()
+    return t.strip()
+
+
 def render_markdown(parts: NoteParts) -> str:
-    # Title includes date + parsha for Obsidian (frontmatter `title` + visible H1).
     title = f"{parts.date.isoformat()} — Torah Study — Parashat {parts.parsha}"
     fm = "\n".join(
         [
@@ -36,21 +55,26 @@ def render_markdown(parts: NoteParts) -> str:
         ]
     )
 
+    research = _sanitize_section_body(parts.research)
+    commentary = _sanitize_section_body(parts.commentary)
+    script = _sanitize_section_body(parts.script)
+    dailies = _sanitize_section_body(parts.dailies)
+    dvar_torah = _sanitize_section_body(parts.dvar_torah)
+
     body = "\n\n".join(
         [
             f"# {title}",
             "## Research",
-            parts.research.strip(),
+            research,
             "## Commentary",
-            parts.commentary.strip(),
+            commentary,
             "## Podcast Script",
-            parts.script.strip(),
+            script,
             "## Daily Reflections",
-            parts.dailies.strip(),
+            dailies,
             "## Dvar Torah",
-            parts.dvar_torah.strip(),
+            dvar_torah,
         ]
     ).strip()
 
     return f"{fm}\n\n{body}\n"
-
