@@ -113,8 +113,15 @@ def build_markdown(content: dict) -> str:
     parsha = content.get("parasha", "Weekly Parasha")
     date = content.get("created_at", "")[:10]
     return (
+        f"---\n"
+        f"tags: [torah, parasha, weekly-study]\n"
+        f"date: {date}\n"
+        f"parasha: {parsha}\n"
+        f"aliases:\n"
+        f"  - Parashat {parsha}\n"
+        f"---\n\n"
         f"# Torah Study — Parashat {parsha}\n\n"
-        f"**Date:** {date}\n\n"
+        f"> {date}\n\n"
         f"---\n\n"
         f"## Research\n\n{content.get('research', '')}\n\n"
         f"---\n\n"
