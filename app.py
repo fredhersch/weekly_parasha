@@ -107,6 +107,36 @@ def load_latest_entry_id():
     conn.close()
     return row[0] if row else None
 
+OBSIDIAN_TORAH_DIR = "/Users/fredhersch/Documents/second-brain/Torah Study"
+
+def build_markdown(content: dict) -> str:
+    parsha = content.get("parasha", "Weekly Parasha")
+    date = content.get("created_at", "")[:10]
+    return (
+        f"# Torah Study — Parashat {parsha}\n\n"
+        f"**Date:** {date}\n\n"
+        f"---\n\n"
+        f"## Research\n\n{content.get('research', '')}\n\n"
+        f"---\n\n"
+        f"## Commentary\n\n{content.get('commentary', '')}\n\n"
+        f"---\n\n"
+        f"## Podcast Script\n\n{content.get('script', '')}\n\n"
+        f"---\n\n"
+        f"## Daily Reflections\n\n{content.get('dailies', '')}\n\n"
+        f"---\n\n"
+        f"## Dvar Torah\n\n{content.get('dvar_torah', '')}\n"
+    )
+
+def save_to_obsidian(content: dict):
+    os.makedirs(OBSIDIAN_TORAH_DIR, exist_ok=True)
+    parsha = content.get("parasha", "Parasha").replace(" ", "-")
+    date = content.get("created_at", "")[:10]
+    filename = f"{date}-Parashat-{parsha}.md"
+    path = os.path.join(OBSIDIAN_TORAH_DIR, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(build_markdown(content))
+    return path
+
 # --- Init ---
 init_db()
 
@@ -224,6 +254,8 @@ elif st.session_state.view == "generate":
                     dvar_torah=step_map.get("dvar_torah", result.content or ""),
                 )
                 st.session_state.content = load_entry(load_latest_entry_id())
+                obsidian_path = save_to_obsidian(st.session_state.content)
+                st.toast(f"Saved to Obsidian: {os.path.basename(obsidian_path)}")
                 st.rerun()
 
     # =====================
@@ -307,16 +339,8 @@ elif st.session_state.view == "generate":
 
         # --- Full document ---
         st.markdown('<div class="section-anchor" id="full-document"></div>', unsafe_allow_html=True)
-        with st.expander("📄 Copy full document for Google Docs"):
-            full_text = (
-                f"TORAH STUDY — Parashat {parsha}\n\n{'='*50}\n\n"
-                f"RESEARCH\n\n{content.get('research','')}\n\n{'='*50}\n\n"
-                f"COMMENTARY\n\n{content.get('commentary','')}\n\n{'='*50}\n\n"
-                f"PODCAST SCRIPT\n\n{content.get('script','')}\n\n{'='*50}\n\n"
-                f"DAILY REFLECTIONS\n\n{content.get('dailies','')}\n\n{'='*50}\n\n"
-                f"DVAR TORAH\n\n{content.get('dvar_torah','')}\n"
-            )
-            st.code(full_text, language=None)
+        with st.expander("📄 Copy full document"):
+            st.code(build_markdown(content), language=None)
             st.caption("Cmd+A, Cmd+C, paste into a blank Google Doc")
 
     else:

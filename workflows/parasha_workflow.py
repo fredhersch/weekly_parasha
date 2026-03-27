@@ -52,14 +52,3 @@ torah_workflow = Workflow(
         Step(name="dvar_torah", executor=dvar_torah_step),
     ]
 )
-
-# Keep daily-only workflow for AgentOS access
-torah_daily_workflow = Workflow(
-    name="Torah Daily Workflow",
-    steps=[
-        Step(name="research",   executor=research_step),
-        Step(name="commentary", executor=commentary_step),
-        Step(name="dailies",    executor=daily_reflection_step),
-        Step(name="dvar_torah", executor=dvar_torah_step),
-    ]
-)

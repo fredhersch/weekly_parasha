@@ -5,13 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "agno[playground]>=2.5.3",
+    "agno>=2.5.3",
     "anthropic>=0.83.0",
-    "google-api-python-client>=2.190.0",
-    "google-auth>=2.48.0",
-    "google-auth-httplib2>=0.3.0",
-    "google-auth-oauthlib>=1.2.4",
-    "google-cloud-firestore>=2.23.0",
     "hdate>=1.1.2",
     "requests>=2.32.5",
     "streamlit>=1.54.0",
